@@ -18,7 +18,7 @@ $(shell mkdir -p $(dir $(DEPS)) >/dev/null)
 
 PG=
 CC=gcc
-CFLAGS=-Wall -O2 $(PG)
+CFLAGS=-Wall -O2 -std=c99 $(PG)
 LDLIBS=-lqpid-proton -lpthread
 LDFLAGS=$(PG)
 

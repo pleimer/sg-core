@@ -8,9 +8,13 @@ COPY . $D/
 
 RUN yum install epel-release -y && \
         yum update -y --setopt=tsflags=nodocs && \
-        yum install git golang --setopt=tsflags=nodocs -y && \
+        yum install git golang gcc make qpid-proton-c-devel --setopt=tsflags=nodocs -y && \
         yum clean all && \
         go build -o smart_gateway cmd/server/server.go && \
+        cd generator && \
+        make && \
+        cd .. && \
+        mv generator/gen /tmp && \
         mv smart_gateway /tmp/
 
 # --- end build, create smart gateway layer ---
@@ -22,9 +26,11 @@ LABEL io.k8s.display-name="Smart Gateway" \
 
 RUN yum install epel-release -y && \
         yum update -y --setopt=tsflags=nodocs && \
+        yum install qpid-proton-c --setopt=tsflags=nodocs -y && \
         yum clean all && \
         rm -rf /var/cache/yum
 
 COPY --from=builder /tmp/smart_gateway /
+COPY --from=builder /tmp/gen /
 
 ENTRYPOINT ["/smart_gateway"]
