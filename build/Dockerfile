@@ -14,8 +14,13 @@ RUN yum install epel-release -y && \
         cd generator && \
         make && \
         cd .. && \
+        git clone https://github.com/infrawatch/sgbridge.git && \
+        cd sgbridge && \
+        make && \
+        cd .. && \
         mv generator/gen /tmp && \
-        mv smart_gateway /tmp/
+        mv smart_gateway /tmp/ && \
+        mv sgbridge/bridge /tmp/
 
 # --- end build, create smart gateway layer ---
 FROM centos:7
@@ -32,5 +37,7 @@ RUN yum install epel-release -y && \
 
 COPY --from=builder /tmp/smart_gateway /
 COPY --from=builder /tmp/gen /
+COPY --from=builder /tmp/bridge /
+COPY entrypoint.sh /
 
-ENTRYPOINT ["/smart_gateway"]
+ENTRYPOINT ["/entrypoint.sh"]
