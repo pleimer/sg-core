@@ -58,20 +58,21 @@ type Elasticsearch struct {
 	configuration *lib.AppConfig
 	logger        *logging.Logger
 	client        *lib.Client
-	store         chan esIndex
+	buffer        map[string][]string
+	dump          chan esIndex
 }
 
 //New constructor
 func New(logger *logging.Logger) application.Application {
 	return &Elasticsearch{
 		logger: logger,
-		store:  make(chan esIndex, 100),
+		buffer: make(map[string][]string),
+		dump:   make(chan esIndex, 100),
 	}
 }
 
 //ReceiveEvent receive event from event bus
 func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg string) {
-
 	switch eType {
 	case data.ERROR:
 		//TODO: error handling
@@ -100,10 +101,23 @@ func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg st
 							es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": record, "error": err})
 							es.logger.Error("failed to marshal event - disregarding")
 						} else {
-							es.store <- esIndex{
-								index:  fmt.Sprintf("%s_events", source.String()),
-								record: []string{string(rec)},
+							index := fmt.Sprintf("%s_events", source.String())
+							var record []string
+							if es.configuration.BufferSize > 1 {
+								if _, ok := es.buffer[index]; !ok {
+									es.buffer[index] = make([]string, 0, es.configuration.BufferSize)
+								}
+								es.buffer[index] = append(es.buffer[index], string(rec))
+								if len(es.buffer[index]) < es.configuration.BufferSize {
+									// buffer is not full, don't send
+									break
+								}
+								record = es.buffer[index]
+								delete(es.buffer, index)
+							} else {
+								record = []string{string(rec)}
 							}
+							es.dump <- esIndex{index: index, record: record}
 						}
 					}
 				}
@@ -136,12 +150,12 @@ func (es *Elasticsearch) Run(ctx context.Context, done chan bool) {
 		select {
 		case <-ctx.Done():
 			goto done
-		case esi := <-es.store:
-			if err := es.client.Index(esi.index, esi.record); err != nil {
-				es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": esi.record, "error": err})
+		case dumped := <-es.dump:
+			if err := es.client.Index(dumped.index, dumped.record, es.configuration.BulkIndex); err != nil {
+				es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": dumped.record, "error": err})
 				es.logger.Error("failed to index event - disregarding")
 			} else {
-				es.logger.Debug("successfully indexed document")
+				es.logger.Debug("successfully indexed document(s)")
 			}
 		}
 	}
@@ -164,6 +178,8 @@ func (es *Elasticsearch) Config(c []byte) error {
 		User:          "",
 		Password:      "",
 		ResetIndex:    false,
+		BufferSize:    1,
+		BulkIndex:     false,
 	}
 	err := config.ParseConfig(bytes.NewReader(c), es.configuration)
 	if err != nil {
