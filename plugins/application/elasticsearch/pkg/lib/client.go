@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -118,16 +119,37 @@ func (esc *Client) IndicesCreate(indices []string) error {
 }
 
 //Index saves given documents under given index
-func (esc *Client) Index(index string, documents []string) error {
-	for _, doc := range documents {
-		res, err := esc.conn.Index(index, strings.NewReader(doc))
+func (esc *Client) Index(index string, documents []string, bulk bool) error {
+	if !bulk {
+		for _, doc := range documents {
+			res, err := esc.conn.Index(index, strings.NewReader(doc))
+			if err != nil {
+				return err
+			}
+			if res.StatusCode != 200 && res.StatusCode != 201 {
+				body, _ := ioutil.ReadAll(res.Body)
+				return fmt.Errorf("Failed to index document[%d]: %s", res.StatusCode, body)
+			}
+		}
+	} else {
+		res, err := esc.conn.Bulk(strings.NewReader(formatBulkRequest(index, documents)))
 		if err != nil {
 			return err
 		}
 		if res.StatusCode != 200 && res.StatusCode != 201 {
 			body, _ := ioutil.ReadAll(res.Body)
-			return fmt.Errorf("Failed to index document[%d]: %s", res.StatusCode, body)
+			return fmt.Errorf("Failed to index document(s)[%d]: %s", res.StatusCode, body)
 		}
 	}
 	return nil
+}
+
+func formatBulkRequest(index string, documents []string) string {
+	var buffer bytes.Buffer
+	for _, doc := range documents {
+		buffer.WriteString(fmt.Sprintf("{\"index\":{\"_index\":\"%s\"}}\\n\n", index))
+		buffer.WriteString(fmt.Sprintf("%s\\n\n", doc))
+	}
+	buffer.WriteString("\n")
+	return buffer.String()
 }
