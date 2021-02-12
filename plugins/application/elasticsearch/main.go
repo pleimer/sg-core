@@ -16,36 +16,11 @@ import (
 	"github.com/infrawatch/sg-core/plugins/application/elasticsearch/pkg/lib"
 )
 
-const handlersSuffix = "-events"
-
-//DataSource indentifies a format of incoming data in the message bus channel.
-type DataSource int
-
-//ListAll returns slice of supported data sources in human readable names.
-func (src DataSource) ListAll() []string {
-	return []string{"generic", "collectd", "ceilometer"}
-}
-
-//SetFromString resets value according to given human readable identification. Returns false if invalid identification was given.
-func (src *DataSource) SetFromString(name string) bool {
-	for index, value := range src.ListAll() {
-		if name == value {
-			*src = DataSource(index)
-			return true
-		}
-	}
-	return false
-}
-
-//String returns human readable data type identification.
-func (src DataSource) String() string {
-	return (src.ListAll())[src]
-}
-
-//Prefix returns human readable data type identification.
-func (src DataSource) Prefix() string {
-	return fmt.Sprintf("%s_*", src.String())
-}
+const (
+	appname        = "elasticsearch"
+	handlersSuffix = "-events"
+	genericSuffix  = "_generic"
+)
 
 //wrapper object for elasitcsearch index
 type esIndex struct {
@@ -71,6 +46,56 @@ func New(logger *logging.Logger) application.Application {
 	}
 }
 
+//getIndexName returns ES index name appropriate to data source and event type
+func getIndexName(record map[string]interface{}, source data.DataSource) string {
+	output := fmt.Sprintf("%s%s", source.String(), genericSuffix)
+
+	switch source.String() {
+	case "collectd":
+		if val, ok := record["labels"]; ok {
+			if labels, ok := val.(map[string]interface{}); ok {
+				if value, ok := labels["alertname"].(string); ok {
+					if index := strings.LastIndex(value, "_"); index > len("collectd_") {
+						output = value[0:index]
+					} else {
+						output = value
+					}
+				}
+			}
+		}
+	case "ceilometer":
+		// use event_type from payload or fallback to message's event_type if N/A
+		if payload, ok := record["payload"]; ok {
+			if typedPayload, ok := payload.(map[string]interface{}); ok {
+				if val, ok := typedPayload["event_type"]; ok {
+					if strVal, ok := val.(string); ok {
+						output = strVal
+					}
+				}
+			}
+		}
+		if output == fmt.Sprintf("%s%s", source.String(), genericSuffix) {
+			if val, ok := record["event_type"]; ok {
+				if strVal, ok := val.(string); ok {
+					output = strVal
+				}
+			}
+		}
+		// replace dotted notation and dashes with underscores
+		parts := strings.Split(output, ".")
+		if len(parts) > 1 {
+			output = strings.Join(parts[:len(parts)-1], "_")
+		}
+		output = strings.ReplaceAll(output, "-", "_")
+	}
+
+	// ensure index name is prefixed with source name
+	if !strings.HasPrefix(output, fmt.Sprintf("%s_", source.String())) {
+		output = fmt.Sprintf("%s_%s", source.String(), output)
+	}
+	return output
+}
+
 //ReceiveEvent receive event from event bus
 func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg string) {
 	switch eType {
@@ -79,29 +104,29 @@ func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg st
 	case data.EVENT:
 		// event handling
 		if strings.HasSuffix(hName, handlersSuffix) {
-			source := DataSource(0)
+			source := data.DataSource(0)
 			if ok := source.SetFromString(hName[0:(len(hName) - len(handlersSuffix))]); !ok {
-				es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "source": source.String()})
+				es.logger.Metadata(logging.Metadata{"plugin": appname, "source": hName})
 				es.logger.Warn("received event from unknown data source - disregarding")
 			} else {
 				record := make(map[string]interface{})
 				err := json.Unmarshal([]byte(msg), &record)
 				if err != nil {
-					es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": msg, "error": err})
+					es.logger.Metadata(logging.Metadata{"plugin": appname, "event": msg, "error": err})
 					es.logger.Error("failed to unmarshal event - disregarding")
 				} else {
 					// format message if needed
 					err := lib.EventFormatters[source.String()](record)
 					if err != nil {
-						es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": record, "error": err})
+						es.logger.Metadata(logging.Metadata{"plugin": appname, "event": record, "error": err})
 						es.logger.Error("failed to format event - disregarding")
 					} else {
 						rec, err := json.Marshal(record)
 						if err != nil {
-							es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": record, "error": err})
+							es.logger.Metadata(logging.Metadata{"plugin": appname, "event": record, "error": err})
 							es.logger.Error("failed to marshal event - disregarding")
 						} else {
-							index := fmt.Sprintf("%s_events", source.String())
+							index := getIndexName(record, source)
 							var record []string
 							if es.configuration.BufferSize > 1 {
 								if _, ok := es.buffer[index]; !ok {
@@ -123,7 +148,7 @@ func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg st
 				}
 			}
 		} else {
-			es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": msg})
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": msg})
 			es.logger.Info("received unknown data in event bus - disregarding")
 		}
 	case data.RESULT:
@@ -138,12 +163,12 @@ func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg st
 func (es *Elasticsearch) Run(ctx context.Context, done chan bool) {
 	if es.configuration.ResetIndex {
 		supported := []string{}
-		for i := range (DataSource(0)).ListAll() {
-			supported = append(supported, DataSource(i).Prefix())
+		for i := range (data.DataSource(0)).ListAll() {
+			supported = append(supported, data.DataSource(i).Prefix())
 		}
 		es.client.IndicesDelete(supported)
 	}
-	es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "url": es.configuration.HostURL})
+	es.logger.Metadata(logging.Metadata{"plugin": appname, "url": es.configuration.HostURL})
 	es.logger.Info("storing events to Elasticsearch.")
 
 	for {
@@ -152,7 +177,7 @@ func (es *Elasticsearch) Run(ctx context.Context, done chan bool) {
 			goto done
 		case dumped := <-es.dump:
 			if err := es.client.Index(dumped.index, dumped.record, es.configuration.BulkIndex); err != nil {
-				es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch", "event": dumped.record, "error": err})
+				es.logger.Metadata(logging.Metadata{"plugin": appname, "event": dumped.record, "error": err})
 				es.logger.Error("failed to index event - disregarding")
 			} else {
 				es.logger.Debug("successfully indexed document(s)")
@@ -161,7 +186,7 @@ func (es *Elasticsearch) Run(ctx context.Context, done chan bool) {
 	}
 
 done:
-	es.logger.Metadata(logging.Metadata{"plugin": "elasticsearch"})
+	es.logger.Metadata(logging.Metadata{"plugin": appname})
 	es.logger.Info("exited")
 }
 
