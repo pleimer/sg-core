@@ -116,7 +116,7 @@ func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg st
 					es.logger.Error("failed to unmarshal event - disregarding")
 				} else {
 					// format message if needed
-					err := lib.EventFormatters[source.String()](record)
+					err := data.EventFormatters[source.String()](record)
 					if err != nil {
 						es.logger.Metadata(logging.Metadata{"plugin": appname, "event": record, "error": err})
 						es.logger.Error("failed to format event - disregarding")

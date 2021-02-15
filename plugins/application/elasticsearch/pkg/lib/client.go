@@ -83,7 +83,7 @@ func (esc *Client) IndicesExists(indices []string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if res.StatusCode == 200 {
+	if res.StatusCode == http.StatusOK {
 		return true, nil
 	}
 	return false, nil
@@ -95,7 +95,7 @@ func (esc *Client) IndicesDelete(indices []string) error {
 	if err != nil {
 		return err
 	}
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(res.Body)
 		return fmt.Errorf("failed to delete indices [%d]: %s", res.StatusCode, body)
 	}
@@ -109,7 +109,7 @@ func (esc *Client) IndicesCreate(indices []string) error {
 		if err != nil {
 			return err
 		}
-		if res.StatusCode != 200 {
+		if res.StatusCode != http.StatusOK {
 			body, _ := ioutil.ReadAll(res.Body)
 			return fmt.Errorf("failed to create index [%d]: %s", res.StatusCode, body)
 		}
@@ -125,7 +125,7 @@ func (esc *Client) Index(index string, documents []string, bulk bool) error {
 			if err != nil {
 				return err
 			}
-			if res.StatusCode != 200 && res.StatusCode != 201 {
+			if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
 				body, _ := ioutil.ReadAll(res.Body)
 				return fmt.Errorf("failed to index document[%d]: %s", res.StatusCode, body)
 			}
@@ -135,7 +135,7 @@ func (esc *Client) Index(index string, documents []string, bulk bool) error {
 		if err != nil {
 			return err
 		}
-		if res.StatusCode != 200 && res.StatusCode != 201 {
+		if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
 			body, _ := ioutil.ReadAll(res.Body)
 			return fmt.Errorf("failed to index document(s)[%d]: %s", res.StatusCode, body)
 		}

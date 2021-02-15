@@ -71,7 +71,7 @@ func (c *collectdEventsHandler) Handle(msg []byte, reportErrors bool, mpf bus.Me
 			epf(
 				c.Identify(),
 				data.ERROR,
-				fmt.Sprintf(`"error": "%s", "msg": "%s"`, err.Error(), msg),
+				fmt.Sprintf(`{"error":"%s","msg":"%s"}`, err.Error(), msg),
 			)
 		}
 	}

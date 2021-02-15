@@ -66,8 +66,8 @@ func (c *ceilometerEventsHandler) Handle(msg []byte, reportErrors bool, mpf bus.
 		if reportErrors {
 			epf(
 				c.Identify(),
-				data.EVENT,
-				fmt.Sprintf(`"error": "%s", "msg": "%s"`, err.Error(), string(msg)),
+				data.ERROR,
+				fmt.Sprintf(`{"error":"%s","msg":"%s"}`, err.Error(), string(msg)),
 			)
 		}
 	}
