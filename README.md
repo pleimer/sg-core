@@ -1,4 +1,4 @@
-[![Coverage Status](https://coveralls.io/repos/github/pleimer/sg-core/badge.svg?branch=master)](https://coveralls.io/github/pleimer/sg-core?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/pleimer/sg-core/badge.svg?branch=ci-error-fixes)](https://coveralls.io/github/pleimer/sg-core?branch=ci-error-fixes)
 
 # Plugins
 Default plugins exist in /plugins. Plugins can also be hosted as separate projects.
