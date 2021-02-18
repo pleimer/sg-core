@@ -32,30 +32,6 @@ jobs:
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: profile.cov
-      - uses: actions/github-script@v3
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            console.log(context)
-      # - name: Comment on PR with coveralls badge
-      #   uses: actions/github-script@v1
-      #   with:
-      #     script: |
-      #       github.pulls.get({
-      #         owner: context.repo.owner,
-      #         repo: context.repo.repo,
-      #         pull_number: context.payload.issue.number
-      #       }).then( (pr) => {
-      #         var BRANCH = pr.data.head.ref
-      #         var OWNER = context.repo.owner
-
-      #         github.issues.createComment({
-      #           issue_number: context.issue.number,
-      #           owner: context.repo.owner,
-      #           repo: context.repo.repo,
-      #           body: `[![Coverage Status](https://coveralls.io/repos/github/${OWNER}/sg-core/badge.svg?branch=${BRANCH})](https://coveralls.io/github/${OWNER}/sg-core?branch=${BRANCH})`
-      #         })
-      #       })
       - name: Verify image builds
         run: |
           docker build --tag infrawatch/sg-core:latest --file build/Dockerfile .
