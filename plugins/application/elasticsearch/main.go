@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	appname        = "elasticsearch"
-	handlersSuffix = "-events"
-	genericSuffix  = "_generic"
+	appname       = "elasticsearch"
+	genericSuffix = "_generic"
 )
 
 //wrapper object for elasitcsearch index
@@ -47,10 +46,10 @@ func New(logger *logging.Logger) application.Application {
 }
 
 //getIndexName returns ES index name appropriate to data source and event type
-func getIndexName(record map[string]interface{}, source data.DataSource) string {
-	output := fmt.Sprintf("%s%s", source.String(), genericSuffix)
+func getIndexName(record map[string]interface{}, source string) string {
+	output := fmt.Sprintf("%s%s", source, genericSuffix)
 
-	switch source.String() {
+	switch source {
 	case "collectd":
 		if val, ok := record["labels"]; ok {
 			if labels, ok := val.(map[string]interface{}); ok {
@@ -74,7 +73,7 @@ func getIndexName(record map[string]interface{}, source data.DataSource) string 
 				}
 			}
 		}
-		if output == fmt.Sprintf("%s%s", source.String(), genericSuffix) {
+		if output == fmt.Sprintf("%s%s", source, genericSuffix) {
 			if val, ok := record["event_type"]; ok {
 				if strVal, ok := val.(string); ok {
 					output = strVal
@@ -90,67 +89,82 @@ func getIndexName(record map[string]interface{}, source data.DataSource) string 
 	}
 
 	// ensure index name is prefixed with source name
-	if !strings.HasPrefix(output, fmt.Sprintf("%s_", source.String())) {
-		output = fmt.Sprintf("%s_%s", source.String(), output)
+	if !strings.HasPrefix(output, fmt.Sprintf("%s_", source)) {
+		output = fmt.Sprintf("%s_%s", source, output)
 	}
 	return output
 }
 
 //ReceiveEvent receive event from event bus
-func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg string) {
+func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, evt []byte) {
 	switch eType {
 	case data.ERROR:
 		//TODO: error handling
 	case data.EVENT:
-		// event handling
-		if strings.HasSuffix(hName, handlersSuffix) {
-			source := data.DataSource(0)
-			if ok := source.SetFromString(hName[0:(len(hName) - len(handlersSuffix))]); !ok {
-				es.logger.Metadata(logging.Metadata{"plugin": appname, "source": hName})
-				es.logger.Warn("received event from unknown data source - disregarding")
-			} else {
-				record := make(map[string]interface{})
-				err := json.Unmarshal([]byte(msg), &record)
-				if err != nil {
-					es.logger.Metadata(logging.Metadata{"plugin": appname, "event": msg, "error": err})
-					es.logger.Error("failed to unmarshal event - disregarding")
-				} else {
-					// format message if needed
-					err := data.EventFormatters[source.String()](record)
-					if err != nil {
-						es.logger.Metadata(logging.Metadata{"plugin": appname, "event": record, "error": err})
-						es.logger.Error("failed to format event - disregarding")
-					} else {
-						rec, err := json.Marshal(record)
-						if err != nil {
-							es.logger.Metadata(logging.Metadata{"plugin": appname, "event": record, "error": err})
-							es.logger.Error("failed to marshal event - disregarding")
-						} else {
-							index := getIndexName(record, source)
-							var record []string
-							if es.configuration.BufferSize > 1 {
-								if _, ok := es.buffer[index]; !ok {
-									es.buffer[index] = make([]string, 0, es.configuration.BufferSize)
-								}
-								es.buffer[index] = append(es.buffer[index], string(rec))
-								if len(es.buffer[index]) < es.configuration.BufferSize {
-									// buffer is not full, don't send
-									break
-								}
-								record = es.buffer[index]
-								delete(es.buffer, index)
-							} else {
-								record = []string{string(rec)}
-							}
-							es.dump <- esIndex{index: index, record: record}
-						}
-					}
-				}
-			}
-		} else {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": msg})
-			es.logger.Info("received unknown data in event bus - disregarding")
+		// process events only from "events" handler
+		if hName != "events" {
+			return
 		}
+		var event map[string]interface{}
+		err := json.Unmarshal(evt, &event)
+		if err != nil {
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			es.logger.Warn("failed to unmarshal internal event - disregarding")
+			return
+		}
+		// get data source
+		src, ok := event["source"]
+		if !ok {
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			es.logger.Warn("internal event does not contain source information - disregarding")
+			return
+		}
+		source, ok := src.(string)
+		if !ok {
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			es.logger.Warn("invalid format of source information - disregarding")
+			return
+		}
+		// get record
+		message, ok := event["message"]
+		if !ok {
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			es.logger.Warn("internal event does not contain record data - disregarding")
+			return
+		}
+		rec, ok := message.(map[string]interface{})
+		if !ok {
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "record": rec})
+			es.logger.Warn("received incorrectly formatted record - disregarding")
+			return
+		}
+		// mashal record for storage
+		record, err := json.Marshal(rec)
+		if err != nil {
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "record": rec, "error": err})
+			es.logger.Error("failed to marshal record - disregarding")
+			return
+		}
+		// buffer or index record
+		index := getIndexName(rec, source)
+		var recordList []string
+		if es.configuration.BufferSize > 1 {
+			if _, ok := es.buffer[index]; !ok {
+				es.buffer[index] = make([]string, 0, es.configuration.BufferSize)
+			}
+			es.buffer[index] = append(es.buffer[index], string(record))
+			if len(es.buffer[index]) < es.configuration.BufferSize {
+				// buffer is not full, don't send
+				es.logger.Metadata(logging.Metadata{"plugin": appname, "record": rec})
+				es.logger.Debug("Buffering record")
+				return
+			}
+			recordList = es.buffer[index]
+			delete(es.buffer, index)
+		} else {
+			recordList = []string{string(record)}
+		}
+		es.dump <- esIndex{index: index, record: recordList}
 	case data.RESULT:
 		//TODO: sensubility result handling
 	case data.LOG:
@@ -162,11 +176,7 @@ func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, msg st
 //Run plugin process
 func (es *Elasticsearch) Run(ctx context.Context, done chan bool) {
 	if es.configuration.ResetIndex {
-		supported := []string{}
-		for i := range (data.DataSource(0)).ListAll() {
-			supported = append(supported, data.DataSource(i).Prefix())
-		}
-		es.client.IndicesDelete(supported)
+		es.client.IndicesDelete([]string{"generic_*", "collectd_*", "ceilometer_*"})
 	}
 	es.logger.Metadata(logging.Metadata{"plugin": appname, "url": es.configuration.HostURL})
 	es.logger.Info("storing events to Elasticsearch.")

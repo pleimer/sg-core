@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 )
@@ -32,7 +33,7 @@ func sanitizeCeilometer(jsondata []byte) string {
 }
 
 func sanitizeCollectd(jsondata []byte) string {
-	output := string(jsondata)
+	output := string(bytes.Trim(jsondata, "\t []"))
 	// sanitize "ves" field which can come in nested string in more than one level
 	sub := rexForVes.FindStringSubmatch(output)
 	if len(sub) == 2 {

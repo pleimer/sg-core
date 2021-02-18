@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"fmt"
 	"regexp"
 )
 
@@ -66,18 +65,15 @@ func (src *DataSource) SetFromMessage(jsondata []byte) {
 	for source, rec := range recognizers {
 		if rec(jsondata) {
 			src.SetFromString(source)
-			break
+			return
 		}
 	}
+	//TODO: right now generic event message is everything else than collectd or ceilometer event,
+	//      but once we come up with SG generic event format, we need to add it's recognizer
 	src.SetFromString("generic")
 }
 
 //String returns human readable data type identification.
 func (src DataSource) String() string {
 	return (src.ListAll())[src]
-}
-
-//Prefix returns human readable data type identification.
-func (src DataSource) Prefix() string {
-	return fmt.Sprintf("%s_", src.String())
 }
