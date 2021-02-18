@@ -6,17 +6,7 @@ import (
 
 // package data defines the data descriptions for objects used in the internal buses
 
-// MetricType follows standard metric conventions from prometheus
-type MetricType int
-
-const (
-	//UNTYPED ...
-	UNTYPED MetricType = iota
-	//COUNTER only increases in value
-	COUNTER
-	//GAUGE can increase or decrease in value
-	GAUGE
-)
+//----------------------------------- events ----------------------------------
 
 func (mt MetricType) String() string {
 	return []string{"untyped", "counter", "gauge"}[mt]
@@ -30,11 +20,13 @@ const (
 	ERROR EventType = iota
 	// EVENT contains regular event data
 	EVENT
+	// LOG event contains log record
+	LOG
 	// RESULT event contains data about result of check execution
 	// perfomed by any supported client side agent (collectd-sensubility, sg-agent)
 	RESULT
-	// LOG event contains log record
-	LOG
+	// TASK contains request of performing some task, for example scheduler app asking transport to send message
+	TASK
 )
 
 func (et EventType) String() string {
@@ -48,7 +40,21 @@ type Event struct {
 	Message string
 }
 
-// Metric convenience type that contains all elements of a metric on the bus. This type is good to use for caching and testing
+//---------------------------------- metrics ----------------------------------
+
+// MetricType follows standard metric conventions from prometheus
+type MetricType int
+
+const (
+	//UNTYPED ...
+	UNTYPED MetricType = iota
+	//COUNTER only increases in value
+	COUNTER
+	//GAUGE can increase or decrease in value
+	GAUGE
+)
+
+// Metric internal metric type
 type Metric struct {
 	Name      string
 	Time      float64
