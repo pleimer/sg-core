@@ -26,13 +26,13 @@ var (
 )
 
 //String get string representation of mode
-func (m Mode) String() string {
-	return [...]string{"WRITE", "READ"}[m]
+func (m *Mode) String() string {
+	return [...]string{"WRITE", "READ"}[*m]
 }
 
 //FromString get mode from string
-func (m Mode) FromString(s string) {
-	m = modStr[strings.ToLower(s)]
+func (m *Mode) FromString(s string) {
+	*m = modStr[strings.ToLower(s)]
 }
 
 //WriteFn func type for writing from transport to handlers
