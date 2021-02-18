@@ -18,6 +18,13 @@ const (
 	READ
 )
 
+var (
+	modStr = map[string]Mode{
+		"write": WRITE,
+		"read":  READ,
+	}
+)
+
 //String get string representation of mode
 func (m Mode) String() string {
 	return [...]string{"WRITE", "READ"}[m]
@@ -25,10 +32,7 @@ func (m Mode) String() string {
 
 //FromString get mode from string
 func (m Mode) FromString(s string) {
-	m = map[string]Mode{
-		"write": WRITE,
-		"read":  READ,
-	}[strings.ToLower(s)]
+	m = modStr[strings.ToLower(s)]
 }
 
 //WriteFn func type for writing from transport to handlers
