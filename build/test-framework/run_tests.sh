@@ -24,7 +24,7 @@ go test -v ./...
 
 set +e
 echo " *** Running code coverage tooling"
-go test ./... -race -covermode=atomic -coverprofile=coverage.txt
+go test ./... -race -covermode=atomic -coverprofile=coverage.out
 
 echo " *** Running Coveralls test coverage report"
-goveralls -coverprofile=coverage.txt
+goveralls -coverprofile=coverage.out
