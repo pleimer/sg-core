@@ -25,7 +25,7 @@ jobs:
 
       - name: Run unit testing and code coverage
         run: |
-          docker run -eCOVERALLS_TOKEN -uroot --network host -i --volume $GITHUB_WORKSPACE:/go/src/github.com/infrawatch/sg-core:z --workdir /go/src/github.com/infrawatch/sg-core registry.access.redhat.com/ubi8 /bin/sh -c 'sh ./build/test-framework/run_tests.sh'
+          docker run -eCOVERALLS_TOKEN -uroot --network host -i --volume $GITHUB_WORKSPACE:/go/src/github.com/pleimer/sg-core:z --workdir /go/src/github.com/pleimer/sg-core registry.access.redhat.com/ubi8 /bin/sh -c 'sh ./build/test-framework/run_tests.sh'
 
       - name: Verify image builds
         run: |
