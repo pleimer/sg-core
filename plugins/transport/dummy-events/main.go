@@ -11,8 +11,6 @@ import (
 	"github.com/infrawatch/sg-core/pkg/transport"
 )
 
-const maxBufferSize = 4096
-
 var eventMessages = []string{
 	// Ceilometer events
 	`{"request":{"oslo.version":"2.0","oslo.message":` +

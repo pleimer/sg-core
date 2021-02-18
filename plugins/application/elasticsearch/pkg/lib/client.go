@@ -48,7 +48,6 @@ func createTLSConfig(serverName string, certFile string, keyFile string, caFile 
 	} else {
 		tlsConfig.ServerName = serverName
 	}
-	tlsConfig.BuildNameToCertificate()
 
 	return tlsConfig, nil
 }
