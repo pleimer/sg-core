@@ -40,6 +40,6 @@ type EventReceiver interface {
 	ReceiveEvent(
 		string, //handler
 		data.EventType, //type
-		string, //message
+		[]byte, //message
 	)
 }

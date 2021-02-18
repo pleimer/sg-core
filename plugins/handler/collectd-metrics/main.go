@@ -84,7 +84,7 @@ func (c *collectdMetricsHandler) Handle(blob []byte, reportErrors bool, pf bus.M
 				epf(
 					c.Identify(),
 					data.ERROR,
-					fmt.Sprintf(`"error": "%s"`, err),
+					[]byte(fmt.Sprintf(`{"error": "%s"}`, err)),
 				)
 			}
 		}

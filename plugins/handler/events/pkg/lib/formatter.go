@@ -1,4 +1,4 @@
-package data
+package lib
 
 import "fmt"
 
@@ -48,9 +48,14 @@ func collectdEventFormatter(record map[string]interface{}) error {
 	return nil
 }
 
+func genericEventFormatter(record map[string]interface{}) error {
+	return nil
+}
+
 //EventFormatters are special functions used to reorganize event structures in case of need.
 //Each data source has one formatter which should handle message formatting completely
 var EventFormatters = map[string]func(map[string]interface{}) error{
 	"ceilometer": ceilometerEventFormatter,
 	"collectd":   collectdEventFormatter,
+	"generic":    genericEventFormatter,
 }
