@@ -2,8 +2,8 @@
 set -ex
 
 # bootstrap
-mkdir -p /go/bin /go/src /go/pkg
-export GOPATH=/go
+mkdir -p go/bin go/src go/pkg
+export GOPATH="$PWD/go"
 export PATH=$PATH:$GOPATH/bin
 
 # get dependencies
