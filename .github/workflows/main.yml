@@ -45,7 +45,7 @@ jobs:
               var OWNER = context.repo.owner
 
               github.issues.createComment({
-                issue_number: context.issue.number
+                issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body: `[![Coverage Status](https://coveralls.io/repos/github/${OWNER}/sg-core/badge.svg?branch=${BRANCH})](https://coveralls.io/github/${OWNER}/sg-core?branch=${BRANCH})`
