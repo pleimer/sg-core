@@ -40,7 +40,7 @@ func (eh *EventsHandler) Handle(msg []byte, reportErrors bool, sendMetric bus.Me
 	//TODO: refactor sanitizers to avoid string conversion
 	sanitized := []byte(lib.Sanitizers[source.String()](msg))
 	// format data based on data source
-	message := make(map[string]interface{})
+	var message map[string]interface{}
 	err := json.Unmarshal(sanitized, &message)
 	if err != nil {
 		if reportErrors {

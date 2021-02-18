@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	esv7 "github.com/elastic/go-elasticsearch/v7"
-	"github.com/pkg/errors"
+	"github.com/google/uuid"
 )
 
 // ElasticSearch client implementation using official library from ElasticClient
@@ -71,7 +71,7 @@ func (esc *Client) Connect(cfg *AppConfig) error {
 		Transport: transport,
 	})
 	if err != nil {
-		return errors.Wrap(err, "failed to initialize connection")
+		return fmt.Errorf("failed to initialize connection: %s", err.Error())
 	}
 
 	_, err = esc.conn.Info()
@@ -144,11 +144,16 @@ func (esc *Client) Index(index string, documents []string, bulk bool) error {
 	return nil
 }
 
+func generateDocumentID() string {
+	id := uuid.New()
+	return id.String()
+}
+
 func formatBulkRequest(index string, documents []string) string {
 	var buffer bytes.Buffer
 	for _, doc := range documents {
-		buffer.WriteString(fmt.Sprintf("{\"index\":{\"_index\":\"%s\"}}\\n\n", index))
-		buffer.WriteString(fmt.Sprintf("%s\\n\n", doc))
+		buffer.WriteString(fmt.Sprintf("{\"index\":{\"_index\":\"%s\",\"_id\":\"%s\"}}\n", index, generateDocumentID()))
+		buffer.WriteString(fmt.Sprintf("%s\n", doc))
 	}
 	buffer.WriteString("\n")
 	return buffer.String()

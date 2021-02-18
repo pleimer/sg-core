@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/infrawatch/apputils/logging"
@@ -18,8 +17,7 @@ import (
 )
 
 const (
-	appname        = "alertmanager"
-	handlersSuffix = "-events"
+	appname = "alertmanager"
 )
 
 //AlertManager plugin suites for reporting alerts for Prometheus' alert manager
@@ -42,42 +40,52 @@ func New(logger *logging.Logger) application.Application {
 }
 
 //ReceiveEvent is called whenever an event is broadcast on the event bus. The order of arguments
-func (am *AlertManager) ReceiveEvent(hName string, eType data.EventType, msg string) {
+func (am *AlertManager) ReceiveEvent(hName string, eType data.EventType, evt []byte) {
 	switch eType {
 	case data.ERROR:
 		//TODO: error handling
 	case data.EVENT:
 		// event handling
-		if strings.HasSuffix(hName, handlersSuffix) {
-			source := data.DataSource(0)
-			if ok := source.SetFromString(hName[0:(len(hName) - len(handlersSuffix))]); !ok {
-				am.logger.Metadata(logging.Metadata{"plugin": appname, "source": hName})
-				am.logger.Warn("received event from unknown data source - disregarding")
-			} else {
-				record := make(map[string]interface{})
-				err := json.Unmarshal([]byte(msg), &record)
-				if err != nil {
-					am.logger.Metadata(logging.Metadata{"plugin": appname, "event": msg, "error": err})
-					am.logger.Error("failed to unmarshal event - disregarding")
-				} else {
-					// format message if needed
-					err := data.EventFormatters[source.String()](record)
-					if err != nil {
-						am.logger.Metadata(logging.Metadata{"plugin": appname, "event": record, "error": err})
-						am.logger.Error("failed to format event - disregarding")
-					} else {
-						if generator, ok := lib.AlertGenerators[source.String()]; ok {
-							am.dump <- *(generator(am.configuration.GeneratorURL, record))
-						} else {
-							am.logger.Metadata(logging.Metadata{"plugin": appname, "source": source.String()})
-							am.logger.Error("missing alert generator for data source - disregarding")
-						}
-					}
-				}
-			}
+		// event handling
+		var event map[string]interface{}
+		err := json.Unmarshal(evt, &event)
+		if err != nil {
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			am.logger.Warn("failed to unmarshal internal event - disregarding")
+			return
+		}
+		// get data source
+		src, ok := event["source"]
+		if !ok {
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			am.logger.Warn("internal event does not contain source information - disregarding")
+			return
+		}
+		source, ok := src.(string)
+		if !ok {
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			am.logger.Warn("invalid format of source information - disregarding")
+			return
+		}
+		// get record
+		message, ok := event["message"]
+		if !ok {
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			am.logger.Warn("internal event does not contain message data - disregarding")
+			return
+		}
+		rec, ok := message.(map[string]interface{})
+		if !ok {
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "record": rec})
+			am.logger.Warn("received incorrectly formatted message - disregarding")
+			return
+		}
+		// generate alert
+		if generator, ok := lib.AlertGenerators[source]; ok {
+			am.dump <- *(generator(am.configuration.GeneratorURL, rec))
 		} else {
-			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": msg})
-			am.logger.Info("received unknown data in event bus - disregarding")
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "source": source})
+			am.logger.Error("missing alert generator for data source - disregarding")
 		}
 	case data.RESULT:
 		//TODO: sensubility result handling
