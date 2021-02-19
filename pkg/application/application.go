@@ -36,11 +36,6 @@ type MetricReceiver interface {
 //EventReceiver Receive events from the internal event bus
 type EventReceiver interface {
 	Application
-	//ReceiveEvent is called whenever an event is broadcast on the event bus. The order of arguments: handler name, event type, message
-	ReceiveEvent(
-		string, // index
-		data.EventType, //type
-		map[string]interface{}, //labels
-		map[string]interface{}, //annotations
-	)
+	//ReceiveEvent is called whenever an event is broadcast on the event bus.
+	ReceiveEvent(data.Event)
 }

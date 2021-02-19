@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/infrawatch/sg-core/pkg/bus"
+	"github.com/infrawatch/sg-core/pkg/data"
 	"github.com/infrawatch/sg-core/pkg/handler"
 	"github.com/infrawatch/sg-core/plugins/handler/ceilometer-events/ceilometer"
 )
@@ -26,7 +27,20 @@ func (ce *ceilometerEvents) Identify() string {
 func (ce *ceilometerEvents) Handle(blob []byte, done bool, mrf bus.MetricPublishFunc, ewf bus.EventPublishFunc) error {
 	ce.totalEventsReceived++
 
-	ceilometer.Parse(blob)
+	ceilo := ceilometer.Ceilometer{}
+
+	err := ceilo.Parse(blob)
+	if err != nil {
+		return err
+	}
+
+	err = ceilo.IterEvents(func(e data.Event) {
+		ewf(e)
+	})
+
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

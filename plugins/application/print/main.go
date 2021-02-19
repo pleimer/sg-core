@@ -19,10 +19,11 @@ type configT struct {
 	EventsOutput string
 }
 
-type EventOutput struct {
-	Handler string
-	Type    string
-	Message string
+type eventOutput struct {
+	Index       string
+	Type        string
+	Labels      map[string]interface{}
+	Annotations map[string]interface{}
 }
 
 //Print plugin suites for logging both internal buses to a file.
@@ -47,13 +48,8 @@ func New(logger *logging.Logger) application.Application {
 }
 
 // ReceiveEvent ...
-func (p *Print) ReceiveEvent(hName string, eType data.EventType, msg []byte) {
-	event := data.Event{
-		Handler: hName,
-		Type:    eType,
-		Message: msg,
-	}
-	p.eChan <- event
+func (p *Print) ReceiveEvent(e data.Event) {
+	p.eChan <- e
 }
 
 // ReceiveMetric ...
@@ -98,10 +94,11 @@ func (p *Print) Run(ctx context.Context, done chan bool) {
 			case <-ctx.Done():
 				goto done
 			case event := <-p.eChan:
-				eo := EventOutput{
-					Handler: event.Handler,
-					Type:    event.Type.String(),
-					Message: string(event.Message),
+				eo := eventOutput{
+					Index:       event.Index,
+					Type:        event.Type.String(),
+					Labels:      event.Labels,
+					Annotations: event.Annotations,
 				}
 				encoded, err := json.MarshalIndent(eo, "", "  ")
 				if err != nil {

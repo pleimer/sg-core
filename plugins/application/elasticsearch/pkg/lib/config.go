@@ -11,7 +11,6 @@ type AppConfig struct {
 	UseBasicAuth  bool
 	User          string
 	Password      string
-	ResetIndex    bool
 	BufferSize    int
 	BulkIndex     bool
 }

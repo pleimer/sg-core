@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/infrawatch/apputils/logging"
 	"github.com/infrawatch/sg-core/pkg/application"
@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	appname       = "elasticsearch"
-	genericSuffix = "_generic"
+	appname           = "elasticsearch"
+	genericSuffix     = "_generic"
+	eventRecordFormat = `{"event_type":"%s","generated":"%s","severity":"%s","labels":%s,"annotations":%s}`
 )
 
 //wrapper object for elasitcsearch index
@@ -45,139 +46,46 @@ func New(logger *logging.Logger) application.Application {
 	}
 }
 
-//getIndexName returns ES index name appropriate to data source and event type
-func getIndexName(record map[string]interface{}, source string) string {
-	output := fmt.Sprintf("%s%s", source, genericSuffix)
-
-	switch source {
-	case "collectd":
-		if val, ok := record["labels"]; ok {
-			if labels, ok := val.(map[string]interface{}); ok {
-				if value, ok := labels["alertname"].(string); ok {
-					if index := strings.LastIndex(value, "_"); index > len("collectd_") {
-						output = value[0:index]
-					} else {
-						output = value
-					}
-				}
-			}
-		}
-	case "ceilometer":
-		// use event_type from payload or fallback to message's event_type if N/A
-		if payload, ok := record["payload"]; ok {
-			if typedPayload, ok := payload.(map[string]interface{}); ok {
-				if val, ok := typedPayload["event_type"]; ok {
-					if strVal, ok := val.(string); ok {
-						output = strVal
-					}
-				}
-			}
-		}
-		if output == fmt.Sprintf("%s%s", source, genericSuffix) {
-			if val, ok := record["event_type"]; ok {
-				if strVal, ok := val.(string); ok {
-					output = strVal
-				}
-			}
-		}
-		// replace dotted notation and dashes with underscores
-		parts := strings.Split(output, ".")
-		if len(parts) > 1 {
-			output = strings.Join(parts[:len(parts)-1], "_")
-		}
-		output = strings.ReplaceAll(output, "-", "_")
-	}
-
-	// ensure index name is prefixed with source name
-	if !strings.HasPrefix(output, fmt.Sprintf("%s_", source)) {
-		output = fmt.Sprintf("%s_%s", source, output)
-	}
-	return output
-}
-
 //ReceiveEvent receive event from event bus
-func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, evt []byte) {
-	switch eType {
+func (es *Elasticsearch) ReceiveEvent(event data.Event) {
+	switch event.Type {
 	case data.ERROR:
 		//TODO: error handling
 	case data.EVENT:
-		// process events only from "events" handler
-		if hName != "events" {
-			return
-		}
-		var event map[string]interface{}
-		err := json.Unmarshal(evt, &event)
-		if err != nil {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
-			es.logger.Warn("failed to unmarshal internal event - disregarding")
-			return
-		}
-		// get data source
-		src, ok := event["source"]
-		if !ok {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
-			es.logger.Warn("internal event does not contain source information - disregarding")
-			return
-		}
-		source, ok := src.(string)
-		if !ok {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
-			es.logger.Warn("invalid format of source information - disregarding")
-			return
-		}
-		// get record
-		message, ok := event["message"]
-		if !ok {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
-			es.logger.Warn("internal event does not contain record data - disregarding")
-			return
-		}
-		rec, ok := message.(map[string]interface{})
-		if !ok {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "record": rec})
-			es.logger.Warn("received incorrectly formatted record - disregarding")
-			return
-		}
-		// mashal record for storage
-		record, err := json.Marshal(rec)
-		if err != nil {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "record": rec, "error": err})
-			es.logger.Error("failed to marshal record - disregarding")
-			return
-		}
 		// buffer or index record
-		index := getIndexName(rec, source)
 		var recordList []string
+		record, err := formatRecord(event)
+		if err != nil {
+			es.logger.Metadata(logging.Metadata{"plugin": appname})
+			es.logger.Error("failed formating record")
+			return
+		}
 		if es.configuration.BufferSize > 1 {
-			if _, ok := es.buffer[index]; !ok {
-				es.buffer[index] = make([]string, 0, es.configuration.BufferSize)
+			if _, ok := es.buffer[event.Index]; !ok {
+				es.buffer[event.Index] = make([]string, 0, es.configuration.BufferSize)
 			}
-			es.buffer[index] = append(es.buffer[index], string(record))
-			if len(es.buffer[index]) < es.configuration.BufferSize {
+
+			es.buffer[event.Index] = append(es.buffer[event.Index], record)
+			if len(es.buffer[event.Index]) < es.configuration.BufferSize {
 				// buffer is not full, don't send
-				es.logger.Metadata(logging.Metadata{"plugin": appname, "record": rec})
-				es.logger.Debug("Buffering record")
+				es.logger.Metadata(logging.Metadata{"plugin": appname, "record": record})
+				es.logger.Debug("buffering record")
 				return
 			}
-			recordList = es.buffer[index]
-			delete(es.buffer, index)
+			recordList = es.buffer[event.Index]
+			delete(es.buffer, event.Index)
 		} else {
-			recordList = []string{string(record)}
+			recordList = []string{record}
 		}
-		es.dump <- esIndex{index: index, record: recordList}
+		es.dump <- esIndex{index: event.Index, record: recordList}
 	case data.RESULT:
-		//TODO: sensubility result handling
 	case data.LOG:
-		//TODO: log collection handling
 	}
 
 }
 
 //Run plugin process
 func (es *Elasticsearch) Run(ctx context.Context, done chan bool) {
-	if es.configuration.ResetIndex {
-		es.client.IndicesDelete([]string{"generic_*", "collectd_*", "ceilometer_*"})
-	}
 	es.logger.Metadata(logging.Metadata{"plugin": appname, "url": es.configuration.HostURL})
 	es.logger.Info("storing events to Elasticsearch.")
 
@@ -212,7 +120,6 @@ func (es *Elasticsearch) Config(c []byte) error {
 		UseBasicAuth:  false,
 		User:          "",
 		Password:      "",
-		ResetIndex:    false,
 		BufferSize:    1,
 		BulkIndex:     false,
 	}
@@ -226,4 +133,24 @@ func (es *Elasticsearch) Config(c []byte) error {
 		return errors.Wrap(err, "failed to connect to Elasticsearch host")
 	}
 	return nil
+}
+
+func formatRecord(e data.Event) (string, error) {
+	labelJSON, err := json.Marshal(e.Labels)
+	if err != nil {
+		return "", err
+	}
+	annotJSON, err := json.Marshal(e.Annotations)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf(eventRecordFormat, e.Type, timeFromEpoch(e.Time), e.Severity.String(), labelJSON, annotJSON), nil
+}
+
+// Get time in RFC3339
+func timeFromEpoch(epoch float64) string {
+	whole := int64(epoch)
+	t := time.Unix(whole, int64((float64(whole)-epoch)*1000000000))
+	return t.Format(time.RFC3339)
 }
