@@ -20,7 +20,7 @@ jobs:
           script: |
             var BRANCH_NAME = process.env.BRANCH_NAME;
             github.issues.createComment({
-              issue_numbeer: context.issue.number,
+              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `[![Coverage Status](https://coveralls.io/repos/github/pleimer/sg-core/badge.svg)](https://coveralls.io/github/pleimer/sg-core)`
