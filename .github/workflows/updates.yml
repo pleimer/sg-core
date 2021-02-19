@@ -1,0 +1,28 @@
+name: Coveralls Badge
+on: pull_request
+
+jobs:
+  badge:
+    if: |
+      (
+        (github.event.issue.author_association == 'OWNER') ||
+        (github.event.issue.author_association == 'COLLABORATOR') ||
+        (github.event.issue.author_association == 'CONTRIBUTOR') ||
+        (github.event.issue.author_association == 'MEMBER')
+      )
+  runs-on: ubuntu-latest
+  steps:
+    - name: update PR with coveralls badge
+      uses: actions/github-script@v3
+      with:
+        github-token: ${{ secret.GITHUB_TOKEN }}
+        script: |
+          var BRANCH_NAME = process.env.BRANCH_NAME;
+          github.issues.createComment({
+            issue_numbeer: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `[![Coverage Status](https://coveralls.io/repos/github/pleimer/sg-core/badge.svg)](https://coveralls.io/github/pleimer/sg-core)`
+          })
+      env:
+        BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
