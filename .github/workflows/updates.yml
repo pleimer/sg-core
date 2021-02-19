@@ -1,5 +1,5 @@
 name: Coveralls Badge
-on: [ pull_request, push ]
+on: pull_request
 
 jobs:
   coveralls_badge:
