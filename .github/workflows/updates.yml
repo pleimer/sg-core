@@ -2,7 +2,8 @@ name: Coveralls Badge
 on: pull_request
 
 jobs:
-  badge:
+  coveralls_badge:
+    name: Coveralls Badge
     if: |
       (
         (github.event.issue.author_association == 'OWNER') ||
@@ -10,7 +11,7 @@ jobs:
         (github.event.issue.author_association == 'CONTRIBUTOR') ||
         (github.event.issue.author_association == 'MEMBER')
       )
-  runs-on: ubuntu-latest
+  runs-on: ubuntu-20.04
   steps:
     - name: update PR with coveralls badge
       uses: actions/github-script@v3
