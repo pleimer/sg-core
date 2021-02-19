@@ -31,7 +31,7 @@ func ceilometerMetricTestTemplateFromJSON(jsonData jsoniter.RawMessage) (*Ceilom
 	return &testData, nil
 }
 
-func EventReceive(handler string, eType data.EventType, msg string) {
+func EventReceive(handler string, eType data.EventType, msg []byte) {
 	fmt.Println(handler)
 }
 

@@ -120,9 +120,9 @@ func generateCeilometerAlert(generatorURL string, evt map[string]interface{}) *P
 	alert.Labels["alertname"] = alertName
 
 	surrogates := []alertKeySurrogate{
-		alertKeySurrogate{"message_id", "messageId"},
-		alertKeySurrogate{"publisher_id", "instance"},
-		alertKeySurrogate{"event_type", "type"},
+		{"message_id", "messageId"},
+		{"publisher_id", "instance"},
+		{"event_type", "type"},
 	}
 	for _, renameCase := range surrogates {
 		if value, ok := evt[renameCase.Parsed]; ok {

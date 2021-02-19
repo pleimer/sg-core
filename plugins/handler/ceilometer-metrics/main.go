@@ -84,7 +84,7 @@ func (c *ceilometerMetricHandler) Handle(blob []byte, reportErrs bool, mpf bus.M
 			epf(
 				c.Identify(),
 				data.ERROR,
-				fmt.Sprintf(`"error": "%s"`, err),
+				[]byte(fmt.Sprintf(`"error": "%s"`, err)),
 			)
 		}
 		return err
@@ -110,7 +110,7 @@ func (c *ceilometerMetricHandler) Handle(blob []byte, reportErrs bool, mpf bus.M
 				epf(
 					c.Identify(),
 					data.ERROR,
-					fmt.Sprintf(`"error": "%s"`, err),
+					[]byte(fmt.Sprintf(`"error": "%s"`, err)),
 				)
 			}
 			return err

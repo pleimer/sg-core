@@ -120,6 +120,11 @@ func (eh *EventsHandler) Identify() string {
 	return "events"
 }
 
+//Config implements handler
+func (eh *EventsHandler) Config(c []byte) error {
+	return nil
+}
+
 //New create new collectdEventsHandler object
 func New() handler.Handler {
 	return &EventsHandler{0}

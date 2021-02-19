@@ -35,7 +35,7 @@ var (
 	metricsUT []data.Metric
 )
 
-func EventReceive(handler string, eType data.EventType, msg string) {
+func EventReceive(handler string, eType data.EventType, msg []byte) {
 	fmt.Println(handler)
 }
 
