@@ -16,7 +16,7 @@ jobs:
       - name: update PR with coveralls badge
         uses: actions/github-script@v3
         with:
-          github-token: ${{ secret.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             var BRANCH_NAME = process.env.BRANCH_NAME;
             github.issues.createComment({
