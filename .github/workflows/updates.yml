@@ -23,7 +23,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `[![Coverage Status](https://coveralls.io/repos/github/pleimer/sg-core/badge.svg)](https://coveralls.io/github/pleimer/sg-core)`
+              body: `[![Coverage Status](https://coveralls.io/repos/github/${context.repo.owner}/${context.repo.repo}/badge.svg?branch=${BRANCH_NAME})](https://coveralls.io/github/${context.repo.owner}/${context.repo.repo}?branch=${BRANCH_NAME})`
             })
         env:
           BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
