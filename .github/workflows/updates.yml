@@ -11,19 +11,19 @@ jobs:
         (github.event.issue.author_association == 'CONTRIBUTOR') ||
         (github.event.issue.author_association == 'MEMBER')
       )
-  runs-on: ubuntu-20.04
-  steps:
-    - name: update PR with coveralls badge
-      uses: actions/github-script@v3
-      with:
-        github-token: ${{ secret.GITHUB_TOKEN }}
-        script: |
-          var BRANCH_NAME = process.env.BRANCH_NAME;
-          github.issues.createComment({
-            issue_numbeer: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: `[![Coverage Status](https://coveralls.io/repos/github/pleimer/sg-core/badge.svg)](https://coveralls.io/github/pleimer/sg-core)`
-          })
-      env:
-        BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+    runs-on: ubuntu-20.04
+    steps:
+      - name: update PR with coveralls badge
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{ secret.GITHUB_TOKEN }}
+          script: |
+            var BRANCH_NAME = process.env.BRANCH_NAME;
+            github.issues.createComment({
+              issue_numbeer: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `[![Coverage Status](https://coveralls.io/repos/github/pleimer/sg-core/badge.svg)](https://coveralls.io/github/pleimer/sg-core)`
+            })
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
