@@ -96,39 +96,28 @@ func getIndexName(record map[string]interface{}, source string) string {
 }
 
 //ReceiveEvent receive event from event bus
-func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, evt []byte) {
+func (es *Elasticsearch) ReceiveEvent(hName string, eType data.EventType, event map[string]interface{}) {
 	switch eType {
 	case data.ERROR:
 		//TODO: error handling
 	case data.EVENT:
-		// process events only from "events" handler
-		if hName != "events" {
-			return
-		}
-		var event map[string]interface{}
-		err := json.Unmarshal(evt, &event)
-		if err != nil {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
-			es.logger.Warn("failed to unmarshal internal event - disregarding")
-			return
-		}
 		// get data source
 		src, ok := event["source"]
 		if !ok {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": event})
 			es.logger.Warn("internal event does not contain source information - disregarding")
 			return
 		}
 		source, ok := src.(string)
 		if !ok {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": event})
 			es.logger.Warn("invalid format of source information - disregarding")
 			return
 		}
 		// get record
 		message, ok := event["message"]
 		if !ok {
-			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": event})
 			es.logger.Warn("internal event does not contain record data - disregarding")
 			return
 		}

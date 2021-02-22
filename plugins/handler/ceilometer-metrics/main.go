@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -84,7 +83,7 @@ func (c *ceilometerMetricHandler) Handle(blob []byte, reportErrs bool, mpf bus.M
 			epf(
 				c.Identify(),
 				data.ERROR,
-				fmt.Sprintf(`"error": "%s"`, err),
+				map[string]interface{}{"error": err.Error()},
 			)
 		}
 		return err
@@ -110,7 +109,7 @@ func (c *ceilometerMetricHandler) Handle(blob []byte, reportErrs bool, mpf bus.M
 				epf(
 					c.Identify(),
 					data.ERROR,
-					fmt.Sprintf(`"error": "%s"`, err),
+					map[string]interface{}{"error": err.Error()},
 				)
 			}
 			return err

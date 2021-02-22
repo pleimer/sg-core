@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/infrawatch/sg-core/pkg/bus"
+	"github.com/infrawatch/sg-core/pkg/config"
 	"github.com/infrawatch/sg-core/pkg/data"
 	"github.com/infrawatch/sg-core/pkg/handler"
 	"github.com/infrawatch/sg-core/plugins/handler/events/pkg/lib"
@@ -14,13 +16,8 @@ import (
 
 //EventsHandler is processing event messages
 type EventsHandler struct {
-	totalEventsReceived uint64
-}
-
-//ProcessedEvent contains event data with additional context metadata
-type ProcessedEvent struct {
-	Source  string `json:"source"`
-	Message string `json:"message"`
+	eventsReceived map[string]uint64
+	configuration  *lib.HandlerConfig
 }
 
 //ProcessingError contains processing error data
@@ -32,10 +29,20 @@ type ProcessingError struct {
 
 //Handle implements the data.EventsHandler interface
 func (eh *EventsHandler) Handle(msg []byte, reportErrors bool, sendMetric bus.MetricPublishFunc, sendEvent bus.EventPublishFunc) error {
-	eh.totalEventsReceived++
-
 	source := lib.DataSource(0)
-	source.SetFromMessage(msg)
+	if eh.configuration.StrictSource != "" {
+		source.SetFromString(eh.configuration.StrictSource)
+	} else {
+		// if strict source is not set then handler is processing channel with multiple data sources
+		// and has to be recognized from message format
+		source.SetFromMessage(msg)
+	}
+
+	if _, ok := eh.eventsReceived[source.String()]; !ok {
+		eh.eventsReceived[source.String()] = uint64(0)
+	}
+	eh.eventsReceived[source.String()]++
+
 	// sanitize received message based on data source
 	//TODO: refactor sanitizers to avoid string conversion
 	sanitized := []byte(lib.Sanitizers[source.String()](msg))
@@ -44,14 +51,11 @@ func (eh *EventsHandler) Handle(msg []byte, reportErrors bool, sendMetric bus.Me
 	err := json.Unmarshal(sanitized, &message)
 	if err != nil {
 		if reportErrors {
-			errmsg, errr := json.Marshal(ProcessingError{
-				Error:   err.Error(),
-				Context: string(msg),
-				Message: "failed to unmarshal event - disregarding",
+			sendEvent(eh.Identify(), data.ERROR, map[string]interface{}{
+				"error":   err.Error(),
+				"context": string(msg),
+				"message": "failed to unmarshal event - disregarding",
 			})
-			if errr != nil {
-				sendEvent(eh.Identify(), data.ERROR, errmsg)
-			}
 		}
 		return err
 	}
@@ -59,14 +63,11 @@ func (eh *EventsHandler) Handle(msg []byte, reportErrors bool, sendMetric bus.Me
 	err = lib.EventFormatters[source.String()](message)
 	if err != nil {
 		if reportErrors {
-			errmsg, err := json.Marshal(ProcessingError{
-				Error:   err.Error(),
-				Context: fmt.Sprintf("%v", message),
-				Message: "failed to format event - disregarding",
+			sendEvent(eh.Identify(), data.ERROR, map[string]interface{}{
+				"error":   err.Error(),
+				"context": fmt.Sprintf("%v", message),
+				"message": "failed to format event - disregarding",
 			})
-			if err != nil {
-				sendEvent(eh.Identify(), data.ERROR, errmsg)
-			}
 		}
 		return err
 	}
@@ -75,22 +76,8 @@ func (eh *EventsHandler) Handle(msg []byte, reportErrors bool, sendMetric bus.Me
 		"source":  source.String(),
 		"message": message,
 	}
-	evt, err := json.Marshal(event)
-	if err != nil {
-		if reportErrors {
-			errmsg, err := json.Marshal(ProcessingError{
-				Error:   err.Error(),
-				Context: fmt.Sprintf("%v", event),
-				Message: "failed to format event - disregarding",
-			})
-			if err != nil {
-				sendEvent(eh.Identify(), data.ERROR, errmsg)
-			}
-		}
-		return err
-	}
 	// send internal event
-	sendEvent(eh.Identify(), data.EVENT, evt)
+	sendEvent(eh.Identify(), data.EVENT, event)
 	return nil
 }
 
@@ -101,12 +88,25 @@ func (eh *EventsHandler) Run(ctx context.Context, sendMetric bus.MetricPublishFu
 		case <-ctx.Done():
 			goto done
 		case <-time.After(time.Second):
+			total := uint64(0)
+			for source, value := range eh.eventsReceived {
+				sendMetric(
+					fmt.Sprintf("sg_%s_events_received", source),
+					0,
+					data.COUNTER,
+					0,
+					float64(value),
+					[]string{"source"},
+					[]string{"SG"},
+				)
+				total += value
+			}
 			sendMetric(
 				"sg_total_events_received",
 				0,
 				data.COUNTER,
 				0,
-				float64(eh.totalEventsReceived),
+				float64(total),
 				[]string{"source"},
 				[]string{"SG"},
 			)
@@ -120,7 +120,13 @@ func (eh *EventsHandler) Identify() string {
 	return "events"
 }
 
-//New create new collectdEventsHandler object
+//Config ...
+func (eh *EventsHandler) Config(blob []byte) error {
+	eh.configuration = &lib.HandlerConfig{StrictSource: ""}
+	return config.ParseConfig(bytes.NewReader(blob), eh.configuration)
+}
+
+//New create new eventsHandler object
 func New() handler.Handler {
-	return &EventsHandler{0}
+	return &EventsHandler{eventsReceived: make(map[string]uint64)}
 }

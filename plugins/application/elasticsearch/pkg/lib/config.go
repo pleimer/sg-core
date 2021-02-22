@@ -2,16 +2,16 @@ package lib
 
 //AppConfig holds configuration for Elasticsearch client
 type AppConfig struct {
-	HostURL       string
-	UseTLS        bool
-	TLSServerName string
-	TLSClientCert string
-	TLSClientKey  string
-	TLSCaCert     string
-	UseBasicAuth  bool
-	User          string
-	Password      string
-	ResetIndex    bool
-	BufferSize    int
-	BulkIndex     bool
+	HostURL       string `yaml:"hostURL"`
+	UseTLS        bool   `yaml:"useTLS"`
+	TLSServerName string `yaml:"tlsServerName"`
+	TLSClientCert string `yaml:"tlsClientCert"`
+	TLSClientKey  string `yaml:"tlsClientKey"`
+	TLSCaCert     string `yaml:"tlsCaCert"`
+	UseBasicAuth  bool   `yaml:"useBasicAuth"`
+	User          string `yaml:"user"`
+	Password      string `yaml:"password"`
+	ResetIndex    bool   `yaml:"resetIndex"`
+	BufferSize    int    `yaml:"bufferSize"`
+	BulkIndex     bool   `yaml:"bulkIndex"`
 }

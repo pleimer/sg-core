@@ -37,7 +37,7 @@ func (et EventType) String() string {
 type Event struct {
 	Handler string
 	Type    EventType
-	Message []byte
+	Message map[string]interface{}
 }
 
 //---------------------------------- metrics ----------------------------------

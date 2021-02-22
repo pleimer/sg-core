@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-openapi/errors"
@@ -84,7 +83,7 @@ func (c *collectdMetricsHandler) Handle(blob []byte, reportErrors bool, pf bus.M
 				epf(
 					c.Identify(),
 					data.ERROR,
-					[]byte(fmt.Sprintf(`{"error": "%s"}`, err)),
+					map[string]interface{}{"error": err.Error()},
 				)
 			}
 		}

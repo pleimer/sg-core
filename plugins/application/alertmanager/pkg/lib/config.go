@@ -2,6 +2,6 @@ package lib
 
 //AppConfig ...
 type AppConfig struct {
-	AlertManagerURL string
-	GeneratorURL    string
+	AlertManagerURL string `yaml:"alertManagerUrl"`
+	GeneratorURL    string `yaml:"generatorUrl"`
 }

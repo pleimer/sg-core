@@ -40,37 +40,28 @@ func New(logger *logging.Logger) application.Application {
 }
 
 //ReceiveEvent is called whenever an event is broadcast on the event bus. The order of arguments
-func (am *AlertManager) ReceiveEvent(hName string, eType data.EventType, evt []byte) {
+func (am *AlertManager) ReceiveEvent(hName string, eType data.EventType, event map[string]interface{}) {
 	switch eType {
 	case data.ERROR:
 		//TODO: error handling
 	case data.EVENT:
-		// event handling
-		// event handling
-		var event map[string]interface{}
-		err := json.Unmarshal(evt, &event)
-		if err != nil {
-			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
-			am.logger.Warn("failed to unmarshal internal event - disregarding")
-			return
-		}
 		// get data source
 		src, ok := event["source"]
 		if !ok {
-			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": event})
 			am.logger.Warn("internal event does not contain source information - disregarding")
 			return
 		}
 		source, ok := src.(string)
 		if !ok {
-			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": event})
 			am.logger.Warn("invalid format of source information - disregarding")
 			return
 		}
 		// get record
 		message, ok := event["message"]
 		if !ok {
-			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": evt})
+			am.logger.Metadata(logging.Metadata{"plugin": appname, "event": event})
 			am.logger.Warn("internal event does not contain message data - disregarding")
 			return
 		}
