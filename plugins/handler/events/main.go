@@ -57,7 +57,7 @@ func (eh *EventsHandler) Handle(msg []byte, reportErrors bool, sendMetric bus.Me
 					"message": "failed to parse event - disregarding",
 				},
 				Annotations: map[string]interface{}{
-					"description": "internal smartgateway handler error",
+					"description": "internal smartgateway event handler error",
 				},
 			})
 		}
