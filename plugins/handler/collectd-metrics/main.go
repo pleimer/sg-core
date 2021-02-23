@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-openapi/errors"
@@ -84,7 +83,11 @@ func (c *collectdMetricsHandler) Handle(blob []byte, reportErrors bool, pf bus.M
 				epf(
 					c.Identify(),
 					data.ERROR,
+<<<<<<< HEAD
 					[]byte(fmt.Sprintf(`{"error": "%s"}`, err)),
+=======
+					map[string]interface{}{"error": err.Error()},
+>>>>>>> single-event-handler
 				)
 			}
 		}
@@ -145,10 +148,7 @@ func validateMetric(cdmetric *collectd.Metric) bool {
 	}
 
 	equal := int64((len(cdmetric.Dsnames) ^ len(cdmetric.Dstypes)) ^ (len(cdmetric.Dsnames) ^ len(cdmetric.Values)))
-	if equal != 0 {
-		return false
-	}
-	return true
+	return equal == 0
 }
 
 func genMetricName(cdmetric *collectd.Metric, index int) (name string) {

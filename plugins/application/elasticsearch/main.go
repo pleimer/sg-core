@@ -150,6 +150,9 @@ func formatRecord(e data.Event) (string, error) {
 
 // Get time in RFC3339
 func timeFromEpoch(epoch float64) string {
+	if epoch == 0.0 {
+		return time.Now().Format(time.RFC3339)
+	}
 	whole := int64(epoch)
 	t := time.Unix(whole, int64((float64(whole)-epoch)*1000000000))
 	return t.Format(time.RFC3339)
