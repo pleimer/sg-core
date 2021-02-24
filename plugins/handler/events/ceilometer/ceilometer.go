@@ -84,10 +84,11 @@ func (op *osloPayload) traitsFormatted() (map[string]interface{}, error) {
 }
 
 type osloMessage struct {
-	EventType string `json:"event_type"`
-	Timestamp string
-	Priority  string
-	Payload   []osloPayload
+	EventType   string `json:"event_type"`
+	PublisherID string `json:"publisher_id"`
+	Timestamp   string
+	Priority    string
+	Payload     []osloPayload
 }
 
 func (om *osloMessage) fromBytes(blob []byte) error {
@@ -107,11 +108,7 @@ func (c *Ceilometer) Parse(blob []byte) error {
 	rm.sanitizeMessage()
 
 	c.osloMessage = osloMessage{}
-	err := json.Unmarshal([]byte(rm.Request.OsloMessage), &c.osloMessage)
-	if err != nil {
-		return err
-	}
-	return nil
+	return c.osloMessage.fromBytes([]byte(rm.Request.OsloMessage))
 }
 
 func (c *Ceilometer) name(index int) string {

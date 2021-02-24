@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/infrawatch/apputils/logging"
@@ -26,6 +25,15 @@ const (
 type esIndex struct {
 	index  string
 	record []string
+}
+
+//used to marshal event into es usable json
+type record struct {
+	EventType   string `json:"event_type"`
+	Generated   string
+	Severity    string
+	Labels      map[string]interface{}
+	Annotations map[string]interface{}
 }
 
 //Elasticsearch plugin saves events to Elasticsearch database
@@ -56,7 +64,7 @@ func (es *Elasticsearch) ReceiveEvent(event data.Event) {
 		var recordList []string
 		record, err := formatRecord(event)
 		if err != nil {
-			es.logger.Metadata(logging.Metadata{"plugin": appname})
+			es.logger.Metadata(logging.Metadata{"plugin": appname, "event": event})
 			es.logger.Error("failed formating record")
 			return
 		}
@@ -79,7 +87,9 @@ func (es *Elasticsearch) ReceiveEvent(event data.Event) {
 		}
 		es.dump <- esIndex{index: event.Index, record: recordList}
 	case data.RESULT:
+		//TODO: result
 	case data.LOG:
+		//TODO: log
 	}
 
 }
@@ -136,16 +146,20 @@ func (es *Elasticsearch) Config(c []byte) error {
 }
 
 func formatRecord(e data.Event) (string, error) {
-	labelJSON, err := json.Marshal(e.Labels)
-	if err != nil {
-		return "", err
+	record := record{
+		EventType:   e.Type.String(),
+		Generated:   timeFromEpoch(e.Time),
+		Severity:    e.Severity.String(),
+		Labels:      e.Labels,
+		Annotations: e.Annotations,
 	}
-	annotJSON, err := json.Marshal(e.Annotations)
+
+	res, err := json.Marshal(record)
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf(eventRecordFormat, e.Type, timeFromEpoch(e.Time), e.Severity.String(), labelJSON, annotJSON), nil
+	return string(res), nil
 }
 
 // Get time in RFC3339
