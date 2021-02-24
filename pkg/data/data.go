@@ -30,14 +30,35 @@ const (
 )
 
 func (et EventType) String() string {
-	return []string{"error", "event", "result", "log"}[et]
+	return []string{"error", "event", "log", "result", "task"}[et]
+}
+
+// EventSeverity indicates severity of an event
+type EventSeverity int
+
+const (
+	//UNKNOWN ... default
+	UNKNOWN EventSeverity = iota
+	//INFO ...
+	INFO
+	//WARNING ...
+	WARNING
+	//CRITICAL ...
+	CRITICAL
+)
+
+func (es EventSeverity) String() string {
+	return []string{"unknown", "info", "warning", "critical"}[es]
 }
 
 // Event convenience type that contains all elements of an event on the bus. This type is good to use for caching and testing
 type Event struct {
-	Handler string
-	Type    EventType
-	Message map[string]interface{}
+	Index       string
+	Time        float64
+	Type        EventType
+	Severity    EventSeverity
+	Labels      map[string]interface{}
+	Annotations map[string]interface{}
 }
 
 //---------------------------------- metrics ----------------------------------

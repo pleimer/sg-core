@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/infrawatch/sg-core/pkg/config"
 	"github.com/infrawatch/sg-core/pkg/data"
 	"github.com/infrawatch/sg-core/pkg/handler"
+	"github.com/infrawatch/sg-core/plugins/handler/events/handlers"
 	"github.com/infrawatch/sg-core/plugins/handler/events/pkg/lib"
 )
 
@@ -43,42 +43,26 @@ func (eh *EventsHandler) Handle(msg []byte, reportErrors bool, sendMetric bus.Me
 	}
 	eh.eventsReceived[source.String()]++
 
-	// sanitize received message based on data source
-	//TODO: refactor sanitizers to avoid string conversion
-	sanitized := []byte(lib.Sanitizers[source.String()](msg))
-	// format data based on data source
-	var message map[string]interface{}
-	err := json.Unmarshal(sanitized, &message)
+	err := handlers.EventHandlers[source.String()](msg, sendEvent)
 	if err != nil {
 		if reportErrors {
-			sendEvent(eh.Identify(), data.ERROR, map[string]interface{}{
-				"error":   err.Error(),
-				"context": string(msg),
-				"message": "failed to unmarshal event - disregarding",
+			sendEvent(data.Event{
+				Index:    eh.Identify(),
+				Type:     data.ERROR,
+				Severity: data.CRITICAL,
+				Time:     0.0,
+				Labels: map[string]interface{}{
+					"error":   err.Error(),
+					"context": string(msg),
+					"message": "failed to parse event - disregarding",
+				},
+				Annotations: map[string]interface{}{
+					"description": "internal smartgateway event handler error",
+				},
 			})
 		}
-		return err
 	}
-	// format message if needed
-	err = lib.EventFormatters[source.String()](message)
-	if err != nil {
-		if reportErrors {
-			sendEvent(eh.Identify(), data.ERROR, map[string]interface{}{
-				"error":   err.Error(),
-				"context": fmt.Sprintf("%v", message),
-				"message": "failed to format event - disregarding",
-			})
-		}
-		return err
-	}
-	// wrap event message with necessary metadata and marshal the structure
-	event := map[string]interface{}{
-		"source":  source.String(),
-		"message": message,
-	}
-	// send internal event
-	sendEvent(eh.Identify(), data.EVENT, event)
-	return nil
+	return err
 }
 
 //Run send internal metrics to bus

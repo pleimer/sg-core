@@ -80,11 +80,19 @@ func (c *collectdMetricsHandler) Handle(blob []byte, reportErrors bool, pf bus.M
 		if err != nil {
 			c.totalDecodeErrors++
 			if reportErrors {
-				epf(
-					c.Identify(),
-					data.ERROR,
-					map[string]interface{}{"error": err.Error()},
-				)
+				epf(data.Event{
+					Index:    c.Identify(),
+					Type:     data.ERROR,
+					Severity: data.CRITICAL,
+					Time:     0.0,
+					Labels: map[string]interface{}{
+						"error":   err.Error(),
+						"message": "failed to parse metric - disregarding",
+					},
+					Annotations: map[string]interface{}{
+						"description": "internal smartgateway collectd-metrics handler error",
+					},
+				})
 			}
 		}
 	}

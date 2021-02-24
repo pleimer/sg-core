@@ -11,7 +11,6 @@ type AppConfig struct {
 	UseBasicAuth  bool   `yaml:"useBasicAuth"`
 	User          string `yaml:"user"`
 	Password      string `yaml:"password"`
-	ResetIndex    bool   `yaml:"resetIndex"`
 	BufferSize    int    `yaml:"bufferSize"`
 	BulkIndex     bool   `yaml:"bulkIndex"`
 }
