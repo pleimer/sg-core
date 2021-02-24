@@ -22,6 +22,7 @@ type configT struct {
 type eventOutput struct {
 	Index       string
 	Type        string
+	Publisher   string
 	Labels      map[string]interface{}
 	Annotations map[string]interface{}
 }
@@ -97,6 +98,7 @@ func (p *Print) Run(ctx context.Context, done chan bool) {
 				eo := eventOutput{
 					Index:       event.Index,
 					Type:        event.Type.String(),
+					Publisher:   event.Publisher,
 					Labels:      event.Labels,
 					Annotations: event.Annotations,
 				}

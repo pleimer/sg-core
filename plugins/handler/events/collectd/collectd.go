@@ -9,6 +9,7 @@ import (
 	"github.com/infrawatch/sg-core/pkg/data"
 	"github.com/infrawatch/sg-core/plugins/handler/events/pkg/lib"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 )
 
 //collectd contains objects for handling collectd events
@@ -18,7 +19,7 @@ var (
 	rexForArray          = regexp.MustCompile(`^\[.*\]$`)
 	rexForNestedQuote    = regexp.MustCompile(`\\\"`)
 	rexForRemainedNested = regexp.MustCompile(`":"[^",]+\\\\\"[^",]+"`)
-	rexForVes            = regexp.MustCompile(`"ves":"{(.*)}"`)
+	rexForVes            = regexp.MustCompile(`\\*"ves\\*":\\*"{(.*)}\\*"`)
 	rexForInvalidVesStr  = regexp.MustCompile(`":"[^",\\]+"[^",\\]+"`)
 
 	json                  = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -61,27 +62,34 @@ func (c *Collectd) Parse(blob []byte) error {
 	message := []eventMessage{}
 	err := json.UnmarshalFromString(sanitize(blob), &message)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "could not parse message: << %s >>", string(blob))
 	}
 
 	// create index
 	for _, eMsg := range message {
 		var name string
-		if value, ok := eMsg.Labels["alertname"].(string); ok {
-			//gets rid of last term showing type like "gauge"
-			if index := strings.LastIndex(value, "_"); index > len("collectd_") {
-				name = value[0:index]
-			} else {
-				name = value
+		name, ok := eMsg.Labels["alertname"].(string)
+		if !ok {
+			//sensubility
+			v, ok := eMsg.Labels["check"].(string)
+			if ok {
+				name = strings.ReplaceAll(v, "-", "_")
 			}
+		}
+		//gets rid of last term showing type like "gauge"
+		if index := strings.LastIndex(name, "_"); index > len("collectd_") {
+			name = name[0:index]
 		}
 
 		var publisher string
-		var ok bool
 		publisher, ok = eMsg.Labels["instance"].(string)
 		if !ok {
-			publisher = "unknown"
+			publisher, ok = eMsg.Labels["instance"].(string)
+			if !ok {
+				publisher = "unknown"
+			}
 		}
+
 		if !strings.HasPrefix(name, fmt.Sprintf("%s_", "collectd")) {
 			name = fmt.Sprintf("%s_%s", source, name)
 		}
@@ -115,13 +123,8 @@ func (c *Collectd) Parse(blob []byte) error {
 
 func sanitize(jsondata []byte) string {
 	// sanitize "ves" field which can come in nested string in more than one level
-	var output []byte
-	if rexForArray.FindSubmatch(jsondata) == nil {
-		// messages from collectd-sensubility don't contain array, so add surrounding brackets
-		output = append([]byte("["), jsondata...)
-		output = append(output, []byte("]")...)
-	}
-	sub := rexForVes.FindStringSubmatch(string(output))
+	output := string(jsondata)
+	sub := rexForVes.FindStringSubmatch(output)
 	if len(sub) == 2 {
 		substr := sub[1]
 		for {
@@ -133,8 +136,11 @@ func sanitize(jsondata []byte) string {
 				break
 			}
 		}
-		res := rexForVes.ReplaceAllLiteralString(string(output), fmt.Sprintf(`"ves":{%s}`, substr))
-		output = []byte(res)
+		output = rexForVes.ReplaceAllLiteralString(output, fmt.Sprintf(`"ves":{%s}`, substr))
+		// messages from collectd-sensubility don't contain array, so add surrounding brackets
+		if rexForArray.FindString(output) == "" {
+			output = fmt.Sprintf("[%s]", string(output))
+		}
 	}
-	return string(output)
+	return output
 }
