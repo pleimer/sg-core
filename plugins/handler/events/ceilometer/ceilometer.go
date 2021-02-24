@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/infrawatch/sg-core/pkg/bus"
 	"github.com/infrawatch/sg-core/pkg/data"
 	"github.com/infrawatch/sg-core/plugins/handler/events/pkg/lib"
 	jsoniter "github.com/json-iterator/go"
@@ -123,21 +124,24 @@ func (c *Ceilometer) name(index int) string {
 	return buildName(fmt.Sprintf("%s%s", source, genericSuffix))
 }
 
-//IterEvents iterate through events in payload calling M on each iteration
-func (c *Ceilometer) IterEvents(m func(data.Event)) error {
+//PublishEvents iterate through events in payload calling publish function on each iteration
+func (c *Ceilometer) PublishEvents(epf bus.EventPublishFunc) error {
 	for idx, event := range c.osloMessage.Payload {
 		ts, err := event.traitsFormatted()
 		if err != nil {
 			return err
 		}
-		m(data.Event{
-			Index:    c.name(idx),
-			Time:     c.getTimeAsEpoch(event),
-			Type:     data.EVENT,
-			Severity: ceilometerAlertSeverity[c.osloMessage.Priority],
-			Labels:   ts,
+		epf(data.Event{
+
+			Index:     c.name(idx),
+			Time:      c.getTimeAsEpoch(event),
+			Type:      data.EVENT,
+			Publisher: c.osloMessage.PublisherID,
+			Severity:  ceilometerAlertSeverity[c.osloMessage.Priority],
+			Labels:    ts,
 			Annotations: map[string]interface{}{
-				"summary": "event from ceilometer",
+				"source_type":  source,
+				"processed_by": "sg",
 			},
 		})
 	}

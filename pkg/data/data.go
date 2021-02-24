@@ -56,6 +56,7 @@ type Event struct {
 	Index       string
 	Time        float64
 	Type        EventType
+	Publisher   string
 	Severity    EventSeverity
 	Labels      map[string]interface{}
 	Annotations map[string]interface{}

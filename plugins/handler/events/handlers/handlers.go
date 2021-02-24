@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"github.com/infrawatch/sg-core/pkg/bus"
-	"github.com/infrawatch/sg-core/pkg/data"
 	"github.com/infrawatch/sg-core/plugins/handler/events/ceilometer"
 	"github.com/infrawatch/sg-core/plugins/handler/events/collectd"
 )
@@ -15,21 +14,16 @@ func ceilometerEventHandler(blob []byte, epf bus.EventPublishFunc) error {
 		return err
 	}
 
-	err = ceilo.IterEvents(func(e data.Event) {
-		epf(e)
-	})
-
-	if err != nil {
-		return err
-	}
-	return nil
+	return ceilo.PublishEvents(epf)
 }
 func collectdEventHandler(blob []byte, epf bus.EventPublishFunc) error {
-	event, err := collectd.Parse(blob)
+	clctd := collectd.Collectd{}
+	err := clctd.Parse(blob)
 	if err != nil {
 		return err
 	}
-	epf(*event)
+
+	clctd.PublishEvents(epf)
 	return nil
 }
 

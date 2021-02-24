@@ -1,11 +1,11 @@
 package collectd
 
 import (
-	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/infrawatch/sg-core/pkg/bus"
 	"github.com/infrawatch/sg-core/pkg/data"
 	"github.com/infrawatch/sg-core/plugins/handler/events/pkg/lib"
 	jsoniter "github.com/json-iterator/go"
@@ -15,6 +15,7 @@ import (
 
 var (
 	// Regular expression for sanitizing received data
+	rexForArray          = regexp.MustCompile(`^\[.*\]$`)
 	rexForNestedQuote    = regexp.MustCompile(`\\\"`)
 	rexForRemainedNested = regexp.MustCompile(`":"[^",]+\\\\\"[^",]+"`)
 	rexForVes            = regexp.MustCompile(`"ves":"{(.*)}"`)
@@ -27,6 +28,8 @@ var (
 		"FAILURE": data.CRITICAL,
 	}
 )
+
+const source string = "collectd"
 
 type msgType int
 
@@ -41,54 +44,84 @@ type eventMessage struct {
 	StartsAt    string `json:"startsAt"`
 }
 
+//Collectd type for handling collectd event messages
+type Collectd struct {
+	events []data.Event
+}
+
+//PublishEvents write events to publish func
+func (c *Collectd) PublishEvents(epf bus.EventPublishFunc) {
+	for _, e := range c.events {
+		epf(e)
+	}
+}
+
 //Parse parse event message
-func Parse(blob []byte) (*data.Event, error) {
-	message := eventMessage{}
+func (c *Collectd) Parse(blob []byte) error {
+	message := []eventMessage{}
 	err := json.UnmarshalFromString(sanitize(blob), &message)
 	if err != nil {
-		fmt.Println(string(blob))
-		return nil, err
+		return err
 	}
 
 	// create index
-	var name string
-	if value, ok := message.Labels["alertname"].(string); ok {
-		if index := strings.LastIndex(value, "_"); index > len("collectd_") {
-			name = value[0:index]
-		} else {
-			name = value
+	for _, eMsg := range message {
+		var name string
+		if value, ok := eMsg.Labels["alertname"].(string); ok {
+			//gets rid of last term showing type like "gauge"
+			if index := strings.LastIndex(value, "_"); index > len("collectd_") {
+				name = value[0:index]
+			} else {
+				name = value
+			}
 		}
-	}
 
-	if !strings.HasPrefix(name, fmt.Sprintf("%s_", "collectd")) {
-		name = fmt.Sprintf("%s_%s", "collectd", name)
-	}
+		var publisher string
+		var ok bool
+		publisher, ok = eMsg.Labels["instance"].(string)
+		if !ok {
+			publisher = "unknown"
+		}
+		if !strings.HasPrefix(name, fmt.Sprintf("%s_", "collectd")) {
+			name = fmt.Sprintf("%s_%s", source, name)
+		}
 
-	var eSeverity data.EventSeverity
-	if value, ok := message.Labels["severity"]; ok {
-		if severity, ok := collectdAlertSeverity[value.(string)]; ok {
-			eSeverity = severity
+		var eSeverity data.EventSeverity
+		if value, ok := eMsg.Labels["severity"]; ok {
+			if severity, ok := collectdAlertSeverity[value.(string)]; ok {
+				eSeverity = severity
+			} else {
+				eSeverity = data.UNKNOWN
+			}
 		} else {
 			eSeverity = data.UNKNOWN
 		}
-	} else {
-		eSeverity = data.UNKNOWN
-	}
 
-	return &data.Event{
-		Index:       name,
-		Type:        data.EVENT,
-		Severity:    eSeverity,
-		Time:        float64(lib.EpochFromFormat(message.StartsAt)),
-		Labels:      message.Labels,
-		Annotations: message.Annotations,
-	}, nil
+		c.events = append(c.events, data.Event{
+			Index:     name,
+			Type:      data.EVENT,
+			Severity:  eSeverity,
+			Publisher: publisher,
+			Time:      float64(lib.EpochFromFormat(eMsg.StartsAt)),
+			Labels:    eMsg.Labels,
+			Annotations: lib.AssimilateMap(eMsg.Annotations, map[string]interface{}{
+				"source_type":  source,
+				"processed_by": "sg",
+			}),
+		})
+	}
+	return nil
 }
 
 func sanitize(jsondata []byte) string {
-	output := string(bytes.Trim(jsondata, "\t []"))
 	// sanitize "ves" field which can come in nested string in more than one level
-	sub := rexForVes.FindStringSubmatch(output)
+	var output []byte
+	if rexForArray.FindSubmatch(jsondata) == nil {
+		// messages from collectd-sensubility don't contain array, so add surrounding brackets
+		output = append([]byte("["), jsondata...)
+		output = append(output, []byte("]")...)
+	}
+	sub := rexForVes.FindStringSubmatch(string(output))
 	if len(sub) == 2 {
 		substr := sub[1]
 		for {
@@ -100,7 +133,8 @@ func sanitize(jsondata []byte) string {
 				break
 			}
 		}
-		output = rexForVes.ReplaceAllLiteralString(output, fmt.Sprintf(`"ves":{%s}`, substr))
+		res := rexForVes.ReplaceAllLiteralString(string(output), fmt.Sprintf(`"ves":{%s}`, substr))
+		output = []byte(res)
 	}
-	return output
+	return string(output)
 }
